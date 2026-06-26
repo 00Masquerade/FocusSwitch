@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "FocusValve",
+  "name": "FocusSwitch",
   "version": "1.0.0",
   "description": "Blur noise and spoiler posts on Twitter (X) and Xiaohongshu (RED) using local AI. Zero server, fully private.",
   "permissions": [
@@ -19,7 +19,7 @@
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "FocusValve",
+    "default_title": "FocusSwitch",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

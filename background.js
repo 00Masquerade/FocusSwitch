@@ -1,5 +1,5 @@
 /**
- * FocusValve — Service Worker (ES Module)
+ * FocusSwitch — Service Worker (ES Module)
  *
  * Hosts the Transformers.js pipeline and handles classification requests
  * from content scripts. One pipeline instance shared across all tabs.
@@ -38,7 +38,7 @@ if (typeof URL.createObjectURL === 'undefined') {
 
 // ── Constants ──
 const SIMILARITY_THRESHOLD = 0.78;
-const STORAGE_KEY = 'focus_valve_state';
+const STORAGE_KEY = 'focus_switch_state';
 
 // ── State ──
 let pipelineHandle = null;
@@ -116,7 +116,7 @@ async function loadPipeline() {
   pipelineLoading = true;
   try {
     const url = chrome.runtime.getURL('lib/transformers.min.js');
-    console.log('[FV:BG] Fetching bundle...');
+    console.log('[FS:BG] Fetching bundle...');
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`fetch failed: ${resp.status}`);
 
@@ -139,14 +139,14 @@ async function loadPipeline() {
     // Service Workers cannot spawn Web Workers — enforce single-thread
     exports.env.backends.onnx.wasm.numThreads = 1;
 
-    console.log('[FV:BG] Creating pipeline...');
+    console.log('[FS:BG] Creating pipeline...');
     const t0 = performance.now();
     pipelineHandle = await exports.pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
       quantized: true,
     });
-    console.log('[FV:BG] Pipeline ready in', (performance.now() - t0).toFixed(0), 'ms');
+    console.log('[FS:BG] Pipeline ready in', (performance.now() - t0).toFixed(0), 'ms');
   } catch (err) {
-    console.error('[FV:BG] Pipeline load failed:', err.message);
+    console.error('[FS:BG] Pipeline load failed:', err.message);
     pipelineHandle = null;
   } finally {
     pipelineLoading = false;
@@ -162,7 +162,7 @@ async function encodeText(text) {
     const result = await pipe(text, { pooling: 'mean', normalize: true });
     return new Float32Array(result.data);
   } catch (err) {
-    console.debug('[FV:BG] encode error:', err.message);
+    console.debug('[FS:BG] encode error:', err.message);
     return null;
   }
 }
@@ -214,7 +214,7 @@ async function classify(texts, keywords) {
       }
 
       if (sim >= SIMILARITY_THRESHOLD) {
-        console.debug('[FV:BG] Semantic match (segment):',
+        console.debug('[FS:BG] Semantic match (segment):',
           JSON.stringify(seg.slice(0, 60)),
           '~', JSON.stringify(kw), `(${sim.toFixed(3)})`);
         return true;
@@ -224,7 +224,7 @@ async function classify(texts, keywords) {
 
   // Log near-misses
   if (globalBest > 0.25 && globalBest < SIMILARITY_THRESHOLD) {
-    console.debug('[FV:BG] Below threshold:',
+    console.debug('[FS:BG] Below threshold:',
       JSON.stringify(globalBestText.slice(0, 60)),
       'vs', JSON.stringify(globalBestKw), `(${globalBest.toFixed(3)})`);
   }
@@ -246,5 +246,5 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
 // ── Pre-warm on install ──
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('[FV:BG] Installed. Pipeline will load on first classify request.');
+  console.log('[FS:BG] Installed. Pipeline will load on first classify request.');
 });

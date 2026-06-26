@@ -1,12 +1,12 @@
-/* FocusValve — content script for Twitter (X) & Xiaohongshu (RED) */
+/* FocusSwitch — content script for Twitter (X) & Xiaohongshu (RED) */
 
 // ───────────────────────────────────────
 // Constants & Configuration
 // ───────────────────────────────────────
 
-const STORAGE_KEY = 'focus_valve_state';
-const BLUR_CLASS = 'fv-blur';
-const REVEAL_CLASS = 'fv-revealed';
+const STORAGE_KEY = 'focus_switch_state';
+const BLUR_CLASS = 'fs-blur';
+const REVEAL_CLASS = 'fs-revealed';
 const HOVER_DELAY_MS = 3000;
 const OBSERVER_DEBOUNCE_MS = 80;
 
@@ -46,8 +46,8 @@ const PLATFORM_CONFIG = {
 
 function detectPlatform() {
   // Test hook — allows platform override in non-production environments
-  if (typeof window.__fv_detectPlatform === 'function') {
-    return window.__fv_detectPlatform();
+  if (typeof window.__fs_detectPlatform === 'function') {
+    return window.__fs_detectPlatform();
   }
   const host = window.location.hostname;
   if (PLATFORM_CONFIG.twitter.hostPattern.test(host)) return PLATFORM_CONFIG.twitter;
@@ -176,12 +176,12 @@ function exactMatch(text) {
 // ───────────────────────────────────────
 // Hover unlock (3s timer — state machine)
 // ───────────────────────────────────────
-// .fv-blur has pointer-events:auto so the element itself
+// .fs-blur has pointer-events:auto so the element itself
 // receives mouseenter/mouseleave. No overlay shield needed.
 //
-// Phase 1 (mouseenter): start 3s timer, store ID on el.dataset.fvTimer.
-// Phase 2 (timer fire): remove BLUR_CLASS, set el.dataset.fvUnlocked="true".
-// Phase 3 (mouseleave): clear timer, re-apply BLUR_CLASS, set fvUnlocked="false".
+// Phase 1 (mouseenter): start 3s timer, store ID on el.dataset.fsTimer.
+// Phase 2 (timer fire): remove BLUR_CLASS, set el.dataset.fsUnlocked="true".
+// Phase 3 (mouseleave): clear timer, re-apply BLUR_CLASS, set fsUnlocked="false".
 // ───────────────────────────────────────
 
 const hoverDataMap = new WeakMap();
@@ -191,32 +191,32 @@ function setupHover(el) {
 
   const onEnter = () => {
     // Already unlocked — nothing to do
-    if (el.dataset.fvUnlocked === 'true') return;
+    if (el.dataset.fsUnlocked === 'true') return;
 
     // Kill any dangling timer from a previous interrupted hover
-    if (el.dataset.fvTimer) {
-      clearTimeout(parseInt(el.dataset.fvTimer, 10));
-      delete el.dataset.fvTimer;
+    if (el.dataset.fsTimer) {
+      clearTimeout(parseInt(el.dataset.fsTimer, 10));
+      delete el.dataset.fsTimer;
     }
 
     // Start strict 3-second countdown — do NOT unblur yet
     const id = setTimeout(() => {
       el.classList.remove(BLUR_CLASS);
-      el.dataset.fvUnlocked = 'true';
-      delete el.dataset.fvTimer;
+      el.dataset.fsUnlocked = 'true';
+      delete el.dataset.fsTimer;
     }, HOVER_DELAY_MS);
-    el.dataset.fvTimer = String(id);
+    el.dataset.fsTimer = String(id);
   };
 
   const onLeave = () => {
     // Destroy any running countdown
-    if (el.dataset.fvTimer) {
-      clearTimeout(parseInt(el.dataset.fvTimer, 10));
-      delete el.dataset.fvTimer;
+    if (el.dataset.fsTimer) {
+      clearTimeout(parseInt(el.dataset.fsTimer, 10));
+      delete el.dataset.fsTimer;
     }
     // Force re-lock — snap back to blurred state
     el.classList.add(BLUR_CLASS);
-    el.dataset.fvUnlocked = 'false';
+    el.dataset.fsUnlocked = 'false';
   };
 
   el.addEventListener('mouseenter', onEnter);
@@ -229,13 +229,13 @@ function teardownHover(el) {
   const data = hoverDataMap.get(el);
   if (!data) return;
 
-  if (el.dataset.fvTimer) {
-    clearTimeout(parseInt(el.dataset.fvTimer, 10));
-    delete el.dataset.fvTimer;
+  if (el.dataset.fsTimer) {
+    clearTimeout(parseInt(el.dataset.fsTimer, 10));
+    delete el.dataset.fsTimer;
   }
   el.removeEventListener('mouseenter', data.onEnter);
   el.removeEventListener('mouseleave', data.onLeave);
-  delete el.dataset.fvUnlocked;
+  delete el.dataset.fsUnlocked;
   hoverDataMap.delete(el);
 }
 
@@ -267,18 +267,18 @@ function splitIntoSegments(text) {
 
 async function classifyPost(postEl, platform) {
   // Guard: skip if already being processed via async sendMessage
-  if (postEl.dataset.fvStatus === 'checking') return;
+  if (postEl.dataset.fsStatus === 'checking') return;
 
   if (!enabled || keywords.length === 0) {
     postEl.classList.remove(BLUR_CLASS, REVEAL_CLASS);
     teardownHover(postEl);
-    postEl.dataset.fvStatus = 'cleared';
+    postEl.dataset.fsStatus = 'cleared';
     return;
   }
 
   const text = extractText(postEl, platform);
   if (!text || text.length < 2) {
-    postEl.dataset.fvStatus = 'cleared';
+    postEl.dataset.fsStatus = 'cleared';
     return;
   }
 
@@ -286,7 +286,7 @@ async function classifyPost(postEl, platform) {
   if (exactMatch(text)) {
     postEl.classList.add(BLUR_CLASS);
     setupHover(postEl);
-    postEl.dataset.fvStatus = 'blurred';
+    postEl.dataset.fsStatus = 'blurred';
     return;
   }
 
@@ -295,7 +295,7 @@ async function classifyPost(postEl, platform) {
   // or URL/handle boundaries) so short keywords aren't diluted in long posts.
   const segments = splitIntoSegments(text);
 
-  postEl.dataset.fvStatus = 'checking';
+  postEl.dataset.fsStatus = 'checking';
   try {
     const response = await chrome.runtime.sendMessage({
       action: 'classify',
@@ -304,18 +304,18 @@ async function classifyPost(postEl, platform) {
     });
     // Verify element still exists and wasn't raced by another call
     if (!document.contains(postEl)) return;
-    if (postEl.dataset.fvStatus !== 'checking') return;
+    if (postEl.dataset.fsStatus !== 'checking') return;
 
     if (response && response.match) {
       postEl.classList.add(BLUR_CLASS);
       setupHover(postEl);
-      postEl.dataset.fvStatus = 'blurred';
+      postEl.dataset.fsStatus = 'blurred';
       return;
     }
   } catch (err) {
     // Background not ready — clear status to allow retry on next observer trigger
-    if (document.contains(postEl) && postEl.dataset.fvStatus === 'checking') {
-      delete postEl.dataset.fvStatus;
+    if (document.contains(postEl) && postEl.dataset.fsStatus === 'checking') {
+      delete postEl.dataset.fsStatus;
     }
     return;
   }
@@ -323,7 +323,7 @@ async function classifyPost(postEl, platform) {
   // No match — ensure unblurred
   postEl.classList.remove(BLUR_CLASS, REVEAL_CLASS);
   teardownHover(postEl);
-  postEl.dataset.fvStatus = 'cleared';
+  postEl.dataset.fsStatus = 'cleared';
 }
 
 // ───────────────────────────────────────
@@ -339,8 +339,8 @@ async function reprocessAllVisiblePosts() {
   const posts = document.querySelectorAll(platform.postSelector);
   for (const postEl of posts) {
     // Clear stale status so posts get re-evaluated (e.g. after keyword changes)
-    if (postEl.dataset.fvStatus !== 'checking') {
-      delete postEl.dataset.fvStatus;
+    if (postEl.dataset.fsStatus !== 'checking') {
+      delete postEl.dataset.fsStatus;
     }
     await classifyPost(postEl, platform);
   }
@@ -374,7 +374,7 @@ async function processNewNodes(mutations) {
       if (!(node instanceof HTMLElement)) continue;
 
       if (node.matches && node.matches(platform.postSelector)) {
-        if (!seen.has(node) && !node.dataset.fvStatus) {
+        if (!seen.has(node) && !node.dataset.fsStatus) {
           seen.add(node);
           await classifyPost(node, platform);
         }
@@ -383,7 +383,7 @@ async function processNewNodes(mutations) {
       if (node.querySelectorAll) {
         const descendants = node.querySelectorAll(platform.postSelector);
         for (const desc of descendants) {
-          if (!seen.has(desc) && !desc.dataset.fvStatus) {
+          if (!seen.has(desc) && !desc.dataset.fsStatus) {
             seen.add(desc);
             await classifyPost(desc, platform);
           }
@@ -439,7 +439,7 @@ async function init() {
   const platform = detectPlatform();
   if (!platform) return; // not a supported site
 
-  console.log('[FocusValve] Initialized on', window.location.hostname,
+  console.log('[FocusSwitch] Initialized on', window.location.hostname,
     '— enabled:', enabled, 'keywords:', keywords.length);
 
   startObserver();

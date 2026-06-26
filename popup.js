@@ -1,6 +1,6 @@
-/* FocusValve — popup UI logic */
+/* FocusSwitch — popup UI logic */
 
-const STORAGE_KEY = 'focus_valve_state';
+const STORAGE_KEY = 'focus_switch_state';
 
 // ---------- DOM refs ----------
 const masterToggle = document.getElementById('master-toggle');

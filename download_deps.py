@@ -76,7 +76,7 @@ def download(url, dest, label):
 
     print(f"  [DOWNLOAD] {label} ...", end=" ", flush=True)
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "FocusValve/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "FocusSwitch/1.0"})
         with urllib.request.urlopen(req, timeout=120) as resp:
             data = resp.read()
         os.makedirs(os.path.dirname(dest), exist_ok=True)
@@ -90,7 +90,7 @@ def download(url, dest, label):
         return False
 
 def main():
-    print("FocusValve — downloading dependencies\n")
+    print("FocusSwitch — downloading dependencies\n")
     ok = 0
     fail = 0
     for f in FILES:
